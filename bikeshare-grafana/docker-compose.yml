@@ -1,0 +1,33 @@
+services:
+  xtdb:
+    image: ghcr.io/xtdb/xtdb:2.2.0-rc0
+    container_name: bikeshare-xtdb
+    ports:
+      # Exposed so the seed script can reach XTDB from the host.
+      - "5432:5432"
+    volumes:
+      - xtdb-data:/var/lib/xtdb
+
+  grafana:
+    image: grafana/grafana:12.2
+    container_name: bikeshare-grafana
+    ports:
+      - "3002:3000"
+    depends_on:
+      xtdb:
+        # The XTDB image ships its own healthcheck against /healthz/alive,
+        # so Grafana only starts once pgwire is actually accepting connections.
+        condition: service_healthy
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      # Skip the login screen — this is a throwaway local demo.
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - ./grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+
+volumes:
+  xtdb-data:

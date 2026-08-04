@@ -1,0 +1,289 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total rides",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]},
+          "unit": "short"
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS total FROM rides WHERE $__timeFilter(started_at)"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Avg ride duration (min)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "purple", "value": null}]},
+          "decimals": 1,
+          "unit": "m"
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+          "format": "table",
+          "rawSql": "SELECT AVG(duration_seconds)/60.0 AS avg_min FROM rides WHERE $__timeFilter(started_at)"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Member share",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+          "format": "table",
+          "rawSql": "SELECT 100.0 * SUM(CASE WHEN user_type = 'member' THEN 1 ELSE 0 END) / COUNT(*) AS pct FROM rides WHERE $__timeFilter(started_at)"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Active stations",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "orange", "value": null}]},
+          "unit": "short"
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT start_station_id) AS n FROM rides WHERE $__timeFilter(started_at)"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Rides per hour",
+      "type": "timeseries",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 4},
+      "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 20, "lineWidth": 2, "pointSize": 4, "showPoints": "never", "spanNulls": true},
+          "unit": "short"
+        }
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+          "format": "time_series",
+          "rawSql": "SELECT DATE_TRUNC('hour', started_at) AS \"time\", user_type AS metric, COUNT(*) AS rides FROM rides WHERE $__timeFilter(started_at) GROUP BY DATE_TRUNC('hour', started_at), user_type ORDER BY DATE_TRUNC('hour', started_at)"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "User type",
+      "type": "piechart",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 13},
+      "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}},
+      "options": {
+        "pieType": "donut",
+        "displayLabels": ["name", "percent"],
+        "legend": {"displayMode": "list", "placement": "right", "values": ["value"]},
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^rides$/", "values": true}
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+          "format": "table",
+          "rawSql": "SELECT user_type AS metric, COUNT(*) AS rides FROM rides WHERE $__timeFilter(started_at) GROUP BY user_type ORDER BY user_type"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Bike type",
+      "type": "piechart",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 13},
+      "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}},
+      "options": {
+        "pieType": "donut",
+        "displayLabels": ["name", "percent"],
+        "legend": {"displayMode": "list", "placement": "right", "values": ["value"]},
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^rides$/", "values": true}
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+          "format": "table",
+          "rawSql": "SELECT bike_type AS metric, COUNT(*) AS rides FROM rides WHERE $__timeFilter(started_at) GROUP BY bike_type ORDER BY bike_type"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Rides by hour of day",
+      "type": "barchart",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 13},
+      "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}, "unit": "short"}
+      },
+      "options": {"orientation": "vertical", "xField": "hour", "xTickLabelRotation": 0, "legend": {"showLegend": false}, "tooltip": {"mode": "single"}},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+          "format": "table",
+          "rawSql": "SELECT EXTRACT(HOUR FROM started_at) AS \"hour\", COUNT(*) AS rides FROM rides WHERE $__timeFilter(started_at) GROUP BY EXTRACT(HOUR FROM started_at) ORDER BY EXTRACT(HOUR FROM started_at)"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Top start stations",
+      "type": "barchart",
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 21},
+      "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}},
+      "options": {"orientation": "horizontal", "legend": {"showLegend": false}, "tooltip": {"mode": "single"}},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+          "format": "table",
+          "rawSql": "SELECT s.name AS station, COUNT(*) AS rides FROM rides r JOIN stations s ON r.start_station_id = s._id WHERE $__timeFilter(r.started_at) GROUP BY s.name ORDER BY rides DESC LIMIT 10"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Stations",
+      "type": "geomap",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 21},
+      "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+      "options": {
+        "view": {"id": "coords", "lat": 40.74, "lon": -73.985, "zoom": 11},
+        "controls": {"showZoom": true, "mouseWheelZoom": true, "showAttribution": true, "showScale": false, "showDebug": false, "showMeasure": false},
+        "basemap": {"name": "Layer 0", "type": "default"},
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Stations",
+            "config": {"style": {"size": {"fixed": 6}, "color": {"fixed": "#5794F2"}, "opacity": 0.8}},
+            "location": {"mode": "coords", "latitude": "lat", "longitude": "lon"}
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+          "format": "table",
+          "rawSql": "SELECT name, lat, lon, capacity, neighborhood FROM stations"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Longest rides",
+      "type": "table",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 30},
+      "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "duration_min"}, "properties": [{"id": "unit", "value": "m"}, {"id": "decimals", "value": 1}]}
+        ]
+      },
+      "options": {"showHeader": true, "footer": {"show": false}},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "DS_XTDB"},
+          "format": "table",
+          "rawSql": "SELECT r.started_at, s.name AS start_station, r.user_type, r.bike_type, r.duration_seconds/60.0 AS duration_min FROM rides r JOIN stations s ON r.start_station_id = s._id WHERE $__timeFilter(r.started_at) ORDER BY r.duration_seconds DESC LIMIT 25"
+        }
+      ]
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": ["xtdb", "bikeshare", "demo"],
+  "templating": {"list": []},
+  "time": {"from": "now-7d", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "Bikeshare",
+  "uid": "xtdb-bikeshare",
+  "version": 1,
+  "weekStart": ""
+}
