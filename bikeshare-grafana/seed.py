@@ -184,9 +184,20 @@ def main():
 
     with psycopg.connect(DSN, autocommit=True) as conn:
         with conn.cursor() as cur:
-            # XTDB has no CREATE TABLE; ERASE ensures a clean slate.
-            cur.execute("ERASE FROM stations WHERE _id IS NOT NULL")
-            cur.execute("ERASE FROM rides WHERE _id IS NOT NULL")
+            # XTDB has no CREATE TABLE, so tables exist only once written to, and
+            # ERASE against a table that isn't there is a planning error rather
+            # than a no-op. Re-runnable means checking first.
+            cur.execute(
+                "SELECT table_name FROM information_schema.tables"
+                " WHERE table_schema = 'public' AND table_name IN ('stations', 'rides')"
+            )
+            existing = {row[0] for row in cur.fetchall()}
+            for table in ("stations", "rides"):
+                if table in existing:
+                    cur.execute(
+                        sql.SQL("ERASE FROM {} WHERE _id IS NOT NULL").format(sql.Identifier(table))
+                    )
+                    print(f"  cleared existing {table}")
 
         # XTDB pgwire rejects untyped DML params; embed values as SQL literals instead.
         def insert_rows(table: str, columns: list[str], rows: list[tuple], batch: int = 500):

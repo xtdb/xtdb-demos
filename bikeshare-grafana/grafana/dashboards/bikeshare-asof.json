@@ -334,7 +334,7 @@
             "uid": "DS_XTDB"
           },
           "format": "table",
-          "rawSql": "SELECT name, capacity, _valid_from, _valid_to FROM stations FOR ALL VALID_TIME WHERE _valid_to IS NOT NULL OR _valid_from > TIMESTAMP WITH TIME ZONE '2026-04-01T00:00:00Z' ORDER BY name, _valid_from"
+          "rawSql": "SELECT name, capacity, _valid_from, _valid_to FROM stations FOR ALL VALID_TIME WHERE _valid_to IS NOT NULL OR _valid_from > NOW() - INTERVAL '30' DAY ORDER BY name, _valid_from"
         }
       ]
     }

@@ -7,6 +7,15 @@ services:
       - "5432:5432"
     volumes:
       - xtdb-data:/var/lib/xtdb
+    # The image's own healthcheck uses `wget --spider`, which sends HEAD, and
+    # /healthz/alive answers 405 — so it can never pass and every container
+    # reports unhealthy forever (xtdb/xtdb, as of 2.2.0-rc0). Override with a GET.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/healthz/alive"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
 
   grafana:
     image: grafana/grafana:12.2
