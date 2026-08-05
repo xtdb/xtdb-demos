@@ -6,16 +6,16 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": null,
-  "description": "Pick a value from the 'As of' dropdown \u2014 every panel re-runs FOR VALID_TIME AS OF that point, rewinding the dashboard.",
+  "description": "Two dropdowns, two axes. 'As of' rewinds valid time — what was true in the world. 'Knowledge as of' rewinds system time — what we had recorded at the time. One station's capacity was mis-recorded and later corrected, backdated 12 days, so the two axes disagree.",
   "links": [],
   "panels": [
     {
       "id": 1,
-      "title": "Fleet capacity AS OF ${days_back}",
+      "title": "Fleet capacity",
       "type": "stat",
       "gridPos": {
         "h": 4,
-        "w": 8,
+        "w": 6,
         "x": 0,
         "y": 0
       },
@@ -23,7 +23,7 @@
         "type": "postgres",
         "uid": "DS_XTDB"
       },
-      "description": "Total bike capacity across all stations, as of the selected 'As of' point.",
+      "description": "Total bike capacity across all stations: true at the selected 'As of' point, as recorded at the selected knowledge basis.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -61,24 +61,25 @@
             "uid": "DS_XTDB"
           },
           "format": "table",
-          "rawSql": "SELECT SUM(capacity) AS total FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '${days_back}' DAY)"
+          "rawSql": "SELECT SUM(capacity) AS total FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '${days_back}' DAY) FOR SYSTEM_TIME AS OF TIMESTAMP '${basis}'"
         }
       ]
     },
     {
       "id": 2,
-      "title": "Stations open AS OF ${days_back}",
+      "title": "Stations open",
       "type": "stat",
       "gridPos": {
         "h": 4,
-        "w": 8,
-        "x": 8,
+        "w": 6,
+        "x": 6,
         "y": 0
       },
       "datasource": {
         "type": "postgres",
         "uid": "DS_XTDB"
       },
+      "description": "Stations in service at the selected 'As of' point. Late openings drop out as you rewind; since-closed stations come back.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -88,7 +89,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "blue",
                 "value": null
               }
             ]
@@ -116,25 +117,25 @@
             "uid": "DS_XTDB"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) AS n FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '${days_back}' DAY)"
+          "rawSql": "SELECT COUNT(*) AS n FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '${days_back}' DAY) FOR SYSTEM_TIME AS OF TIMESTAMP '${basis}'"
         }
       ]
     },
     {
       "id": 3,
-      "title": "Capacity delta vs 30 days ago",
+      "title": "Capacity grown vs 30 days ago",
       "type": "stat",
       "gridPos": {
         "h": 4,
-        "w": 8,
-        "x": 16,
+        "w": 6,
+        "x": 12,
         "y": 0
       },
       "datasource": {
         "type": "postgres",
         "uid": "DS_XTDB"
       },
-      "description": "Change in fleet capacity between the current 'As of' point and 30 days ago.",
+      "description": "Bikes of capacity added between 30 days ago and the selected 'As of' point — station expansions and openings, net of closures. Both ends read at the same knowledge basis, so this is real-world change only.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -144,8 +145,12 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "purple",
+                "color": "#33383E",
                 "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
               }
             ]
           },
@@ -172,16 +177,76 @@
             "uid": "DS_XTDB"
           },
           "format": "table",
-          "rawSql": "SELECT (SELECT SUM(capacity) FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '${days_back}' DAY)) - (SELECT SUM(capacity) FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '30' DAY)) AS delta"
+          "rawSql": "SELECT (SELECT SUM(capacity) FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '${days_back}' DAY) FOR SYSTEM_TIME AS OF TIMESTAMP '${basis}') - (SELECT SUM(capacity) FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '30' DAY) FOR SYSTEM_TIME AS OF TIMESTAMP '${basis}') AS grown"
         }
       ]
     },
     {
       "id": 4,
-      "title": "Capacity per station AS OF ${days_back}",
+      "title": "Restated since first recorded",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "DS_XTDB"
+      },
+      "description": "Bikes of capacity that were true at the selected 'As of' point but were NOT in the books when first recorded. Same instant of the world, two different records of it. Zero for dates before the audit; 15 after it. This is the axis a history table can't give you.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#33383E",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "DS_XTDB"
+          },
+          "format": "table",
+          "rawSql": "SELECT (SELECT SUM(capacity) FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '${days_back}' DAY) FOR SYSTEM_TIME AS OF TIMESTAMP '${basis}') - (SELECT SUM(capacity) FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '${days_back}' DAY) FOR SYSTEM_TIME AS OF TIMESTAMP '${basis_first}') AS restated"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Capacity per station",
       "type": "barchart",
       "gridPos": {
-        "h": 11,
+        "h": 9,
         "w": 12,
         "x": 0,
         "y": 4
@@ -190,10 +255,12 @@
         "type": "postgres",
         "uid": "DS_XTDB"
       },
+      "description": "Flip the knowledge basis and watch one bar move — the corrected station.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "fixedColor": "blue",
+            "mode": "fixed"
           },
           "unit": "short"
         }
@@ -215,16 +282,16 @@
             "uid": "DS_XTDB"
           },
           "format": "table",
-          "rawSql": "SELECT name AS station, capacity FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '${days_back}' DAY) ORDER BY capacity DESC"
+          "rawSql": "SELECT name AS station, capacity FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '${days_back}' DAY) FOR SYSTEM_TIME AS OF TIMESTAMP '${basis}' ORDER BY capacity DESC"
         }
       ]
     },
     {
-      "id": 5,
-      "title": "Stations AS OF ${days_back}",
+      "id": 6,
+      "title": "Stations",
       "type": "geomap",
       "gridPos": {
-        "h": 11,
+        "h": 9,
         "w": 12,
         "x": 12,
         "y": 4
@@ -233,6 +300,7 @@
         "type": "postgres",
         "uid": "DS_XTDB"
       },
+      "description": "Marker size is capacity at the selected 'As of' point and knowledge basis.",
       "options": {
         "view": {
           "id": "coords",
@@ -285,38 +353,29 @@
             "uid": "DS_XTDB"
           },
           "format": "table",
-          "rawSql": "SELECT name, lat, lon, capacity, neighborhood FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '${days_back}' DAY)"
+          "rawSql": "SELECT name, lat, lon, capacity, neighborhood FROM stations FOR VALID_TIME AS OF (NOW() - INTERVAL '${days_back}' DAY) FOR SYSTEM_TIME AS OF TIMESTAMP '${basis}'"
         }
       ]
     },
     {
-      "id": 6,
-      "title": "Capacity history (full audit trail)",
+      "id": 7,
+      "title": "The correction — one station, three rows, both axes",
       "type": "table",
       "gridPos": {
-        "h": 10,
+        "h": 6,
         "w": 24,
         "x": 0,
-        "y": 15
+        "y": 13
       },
       "datasource": {
         "type": "postgres",
         "uid": "DS_XTDB"
       },
-      "description": "Every recorded version of every station \u2014 the underlying bitemporal data the AS OF panels query.",
+      "description": "The only station whose record was corrected, every version of it across both axes. Row 1 is the period the audit didn't touch. Rows 2 and 3 cover the same 12 days: the capacity first recorded, superseded, and the capacity we hold now. No knowledge basis is pinned here — this panel deliberately sees everything.",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
+          "custom": {
+            "align": "auto"
           }
         }
       },
@@ -334,7 +393,47 @@
             "uid": "DS_XTDB"
           },
           "format": "table",
-          "rawSql": "SELECT name, capacity, _valid_from, _valid_to FROM stations FOR ALL VALID_TIME WHERE _valid_to IS NOT NULL OR _valid_from > NOW() - INTERVAL '30' DAY ORDER BY name, _valid_from"
+          "rawSql": "SELECT name AS \"station\", capacity, substring(CAST(_valid_from AS VARCHAR) FROM 1 FOR 19) AS \"true from\", COALESCE(substring(CAST(_valid_to AS VARCHAR) FROM 1 FOR 19), 'still true') AS \"true to\", substring(CAST(_system_from AS VARCHAR) FROM 1 FOR 19) AS \"recorded at\", COALESCE(substring(CAST(_system_to AS VARCHAR) FROM 1 FOR 19), 'still believed') AS \"superseded at\" FROM stations FOR ALL SYSTEM_TIME FOR ALL VALID_TIME WHERE name IN (SELECT name FROM stations FOR ALL SYSTEM_TIME FOR ALL VALID_TIME WHERE _system_from > (SELECT MIN(_system_from) FROM stations FOR ALL SYSTEM_TIME FOR ALL VALID_TIME)) ORDER BY _system_from, _valid_from"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Capacity history (full audit trail)",
+      "type": "table",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "DS_XTDB"
+      },
+      "description": "Every station version with a valid-time bound, as recorded at the selected knowledge basis — the bitemporal rows the 'as of' panels resolve against.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        }
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "DS_XTDB"
+          },
+          "format": "table",
+          "rawSql": "SELECT name, capacity, _valid_from, _valid_to FROM stations FOR ALL VALID_TIME FOR SYSTEM_TIME AS OF TIMESTAMP '${basis}' WHERE _valid_to IS NOT NULL OR _valid_from > NOW() - INTERVAL '30' DAY ORDER BY name, _valid_from"
         }
       ]
     }
@@ -351,7 +450,8 @@
     "list": [
       {
         "name": "days_back",
-        "label": "As of",
+        "label": "As of (valid time)",
+        "description": "What was true in the world, this many days ago.",
         "type": "custom",
         "current": {
           "text": "Now",
@@ -394,6 +494,42 @@
         "includeAll": false,
         "multi": false,
         "skipUrlSync": false
+      },
+      {
+        "name": "basis",
+        "label": "Knowledge as of (system time)",
+        "description": "Which recording of the world to read. The options are the transaction times XTDB assigned: the original load, and the correction.",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "DS_XTDB"
+        },
+        "definition": "distinct _system_from on stations",
+        "query": "SELECT DISTINCT CASE WHEN _system_from = (SELECT MIN(_system_from) FROM stations FOR ALL SYSTEM_TIME FOR ALL VALID_TIME) THEN 'As first recorded' ELSE 'Current knowledge' END AS \"__text\", CAST(_system_from AS VARCHAR) AS \"__value\" FROM stations FOR ALL SYSTEM_TIME FOR ALL VALID_TIME ORDER BY 2 DESC",
+        "refresh": 1,
+        "sort": 0,
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "skipUrlSync": false
+      },
+      {
+        "name": "basis_first",
+        "label": "First recording",
+        "description": "Hidden. The earliest transaction time on stations, so the restatement tile has something to compare the selected basis against. A panel can't derive this inline: XTDB rejects a subquery as an AS OF bound.",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "DS_XTDB"
+        },
+        "definition": "min _system_from on stations",
+        "query": "SELECT CAST(MIN(_system_from) AS VARCHAR) AS \"__value\" FROM stations FOR ALL SYSTEM_TIME FOR ALL VALID_TIME",
+        "refresh": 1,
+        "sort": 0,
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "skipUrlSync": false
       }
     ]
   },
@@ -403,7 +539,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Bikeshare \u2014 As Of",
+  "title": "Bikeshare — As Of",
   "uid": "xtdb-bikeshare-asof",
   "version": 1,
   "weekStart": ""

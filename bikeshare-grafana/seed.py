@@ -3,10 +3,14 @@
 # ///
 """Seed a small but realistic bike-share dataset into XTDB.
 
-Stations: ~24 across 4 neighborhoods, with capacity + lat/lon, written as
-          bitemporal versions so FOR VALID_TIME AS OF has something to rewind.
-Rides:    ~12000 over the last 30 days, with rush-hour weekday patterns,
-          weekend leisure mix, and electric/classic bike split.
+Stations:   ~24 across 4 neighborhoods, with capacity + lat/lon, written as
+            bitemporal versions so FOR VALID_TIME AS OF has something to rewind.
+Rides:      ~12000 over the last 30 days, with rush-hour weekday patterns,
+            weekend leisure mix, and electric/classic bike split.
+Correction: one station's capacity was recorded wrong from the start, then fixed
+            in a later transaction and backdated. That gives the dataset a second
+            temporal axis: valid time says what was true, system time says what we
+            had recorded at the time. History alone only needs the first.
 
 Point it elsewhere with XTDB_DSN, e.g. at a dev REPL on port 5440.
 """
@@ -21,11 +25,16 @@ from datetime import datetime, timedelta, timezone
 import psycopg
 from psycopg import sql
 
-DSN = os.environ.get("XTDB_DSN", "host=localhost port=5432 user=xtdb dbname=xtdb")
+DSN = os.environ.get("XTDB_DSN", "host=localhost port=5442 user=xtdb dbname=xtdb")
 SEED = 42
 NOW = datetime.now(tz=timezone.utc).replace(microsecond=0)
 DAYS_BACK = 30
 TARGET_RIDES = 12000
+# The audit that found the mis-recorded capacity. Inside the shortest few 'As of'
+# options so the dashboard shows the correction at 0/1/3/7 days back and not at
+# 14/21/30 — the dropdown then demonstrates a bounded restatement, not a global one.
+CORRECTION_BACKDATED_DAYS = 12
+CORRECTION_UNDERCOUNT = 15
 
 NEIGHBORHOODS = [
     ("Midtown",    40.755, -73.985),
@@ -134,10 +143,14 @@ def ride_rows(stations):
 
 
 def station_history(stations):
-    """Return a list of (station_row, valid_from, valid_to) versions with bitemporal history.
+    """Return (versions, static_ids).
 
-    Most stations get a single open-ended version covering the whole window.
-    A handful demonstrate capacity expansions, mid-window closures, and new openings.
+    versions is a list of (station_row, valid_from, valid_to). Most stations get a
+    single open-ended version covering the whole window; a handful demonstrate
+    capacity expansions, mid-window closures, and new openings.
+
+    static_ids are the stations with exactly one version. The correction targets one
+    of those, so its two beliefs aren't tangled up with a valid-time change as well.
     """
     rng = random.Random(SEED + 2)
     window_start = NOW - timedelta(days=DAYS_BACK)
@@ -173,13 +186,21 @@ def station_history(stations):
         open_at = window_start + timedelta(days=rng.randint(5, 15))
         versions.append((s, open_at, None))
 
-    return versions
+    return versions, static_ids
+
+
+def correction_target(stations, static_ids):
+    """Pick the station whose capacity was mis-recorded, and by how much."""
+    rng = random.Random(SEED + 3)
+    sid = rng.choice(sorted(static_ids))
+    s = next(x for x in stations if x[0] == sid)
+    return sid, s[1], s[3], s[3] + CORRECTION_UNDERCOUNT
 
 
 def main():
     stations = station_rows()
     rides = ride_rows(stations)
-    history = station_history(stations)
+    history, static_ids = station_history(stations)
     print(f"Generated {len(stations)} stations, {len(history)} station versions, {len(rides)} rides")
 
     with psycopg.connect(DSN, autocommit=True) as conn:
@@ -219,14 +240,39 @@ def main():
             (sid, name, neigh, cap, lat, lon, vf, vt)
             for ((sid, name, neigh, cap, lat, lon), vf, vt) in history
         ]
+        # One statement, deliberately: the dashboard's 'as first recorded' basis is
+        # the earliest _system_from on stations, so splitting these across
+        # transactions would make that basis a half-written table. verify.py asserts
+        # stations carries exactly two distinct _system_from values.
         insert_rows("stations",
                     ["_id", "name", "neighborhood", "capacity", "lat", "lon",
                      "_valid_from", "_valid_to"],
-                    station_versions)
+                    station_versions, batch=len(station_versions))
         insert_rows("rides",
                     ["_id", "started_at", "ended_at", "start_station_id", "end_station_id",
                      "user_type", "bike_type", "duration_seconds"],
                     rides)
+
+        # The correction, in its own transaction so it lands at a later system time
+        # than the original recording. FOR PORTION OF VALID_TIME confines it to the
+        # window the audit actually covers, so earlier valid time keeps the old value
+        # under both bases — a restatement, not a rewrite.
+        sid, name, old_cap, new_cap = correction_target(stations, static_ids)
+        audit_date = NOW - timedelta(days=CORRECTION_BACKDATED_DAYS)
+        with conn.cursor() as cur:
+            # Spelled `TIMESTAMP '...'` rather than passing a datetime: psycopg
+            # renders those as `'...'::timestamptz`, and XTDB's parser rejects a cast
+            # in a temporal bound even though it accepts one in VALUES.
+            cur.execute(
+                sql.SQL(
+                    "UPDATE stations FOR PORTION OF VALID_TIME FROM TIMESTAMP {audit}"
+                    " TO NULL SET capacity = {cap} WHERE _id = {sid}"
+                ).format(audit=sql.Literal(audit_date.strftime("%Y-%m-%dT%H:%M:%SZ")),
+                         cap=sql.Literal(new_cap),
+                         sid=sql.Literal(sid))
+            )
+        print(f"  correction: {name} capacity {old_cap} -> {new_cap},"
+              f" backdated to {audit_date.date()} ({CORRECTION_BACKDATED_DAYS}d ago)")
 
     print("done")
 

@@ -3,8 +3,12 @@ services:
     image: ghcr.io/xtdb/xtdb:2.2.0-rc0
     container_name: bikeshare-xtdb
     ports:
-      # Exposed so the seed script can reach XTDB from the host.
-      - "5432:5432"
+      # Exposed so the seed script can reach XTDB from the host. Deliberately not
+      # 5432: anything else already bound there (a local Postgres, another XTDB, a
+      # dev REPL) wins the host port silently on macOS, and then seed.py writes to
+      # that node while Grafana — which reaches XTDB over the compose network —
+      # queries an empty one. verify.py cross-checks the two to catch it anyway.
+      - "5442:5432"
     volumes:
       - xtdb-data:/var/lib/xtdb
     # The image's own healthcheck uses `wget --spider`, which sends HEAD, and
