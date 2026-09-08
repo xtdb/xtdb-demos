@@ -1,0 +1,20 @@
+services:
+  xtdb:
+    image: ghcr.io/xtdb/xtdb:2.1.0
+    container_name: fhir-pit-xtdb
+    ports:
+      # Not 5432: anything already bound there (a local Postgres, another XTDB, a
+      # dev REPL) wins the host port silently on macOS, and then seed.py writes to
+      # that node while verify.py reads an empty one. 5442 is bikeshare-grafana's.
+      - "5443:5432"
+    volumes:
+      - xtdb-data:/var/lib/xtdb
+    # 2.1.0's own HEALTHCHECK works (curl against /healthz/alive) and is left
+    # alone. Note for anyone bumping the pin: 2.2.0-rc0 regressed it to `wget
+    # --spider`, i.e. HEAD, which /healthz/alive answers 405 — so from that
+    # release on the container reports unhealthy forever and any
+    # `depends_on: condition: service_healthy` deadlocks. bikeshare-grafana
+    # overrides it with a GET; copy that override if you move this pin forward.
+
+volumes:
+  xtdb-data:

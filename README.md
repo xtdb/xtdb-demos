@@ -7,6 +7,7 @@ version** so it keeps working after `main` moves on.
 | Demo | What it shows |
 | --- | --- |
 | [`bikeshare-grafana`](bikeshare-grafana) | Grafana's stock PostgreSQL data source against XTDB, plus a dashboard that rewinds to a point in the past |
+| [`fhir-point-in-time`](fhir-point-in-time) | FHIR `_history` and `vread` as one SQL clause each, and a chart reconstructed across resource types as the prescriber saw it |
 
 ## Conventions
 
