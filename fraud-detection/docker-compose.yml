@@ -1,0 +1,84 @@
+name: xtdb-fraud-detection
+
+# The whole demo: an XTDB node, the feature/serving API, and the UI.
+#
+#   docker compose up
+#
+# A stock published node is enough: the training extract expresses its trailing windows
+# as a band self-join rather than as RANGE window frames, which aren't in a release yet.
+#
+# Every host port is overridable so this can run alongside another node — see .env.example.
+
+services:
+  xtdb:
+    image: ${XTDB_IMAGE:-ghcr.io/xtdb/xtdb:2.2.0-rc0}
+    ports:
+      - "${XTDB_PGWIRE_PORT:-5444}:5432"
+      - "${XTDB_FLIGHT_PORT:-9834}:9832"
+      - "${XTDB_HEALTHZ_PORT:-8084}:8080"
+    environment:
+      # Arrow works off-heap, so direct memory matters as much as the heap here.
+      JDK_JAVA_OPTIONS: -Xmx${XTDB_HEAP:-4g} -XX:MaxDirectMemorySize=${XTDB_DIRECT_MEM:-4g}
+    volumes:
+      - xtdb-data:/var/lib/xtdb
+    healthcheck:
+      # GET, not `wget --spider`: /healthz/alive answers 405 to HEAD, so the image's own
+      # HEALTHCHECK never passes and `depends_on: service_healthy` deadlocks. See
+      # xtdb/xtdb docker/Dockerfile — worth fixing upstream.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/healthz/alive"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  # Isolated in-memory node for the node-backed tests: a playground hands out a fresh
+  # database per connection name, so tests can write their own system-time timeline.
+  # They can't use the demo node — its log lives on the sim clock, system-time only
+  # moves forward, and one test write at wall-clock-now would wedge the sim.
+  #   docker compose --profile test up -d playground
+  playground:
+    profiles: ["test"]
+    image: ${XTDB_IMAGE:-ghcr.io/xtdb/xtdb:2.2.0-rc0}
+    command: ["playground", "--port", "5432"]
+    ports:
+      - "${PLAYGROUND_PORT:-5445}:5432"
+    # the image's HEALTHCHECK probes healthz, which a playground doesn't serve
+    healthcheck:
+      disable: true
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      XTDB_DSN: postgresql://xtdb@xtdb:5432/xtdb
+      XTDB_FLIGHT_URI: grpc://xtdb:9832
+    volumes:
+      # source is mounted so `--reload` picks up edits; models are a named volume so
+      # trained artifacts survive a rebuild and don't land in the working tree
+      - .:/app
+      - models:/app/models
+    depends_on:
+      xtdb:
+        condition: service_healthy
+
+  ui:
+    build:
+      context: .
+      dockerfile: docker/ui.Dockerfile
+    ports:
+      - "${UI_PORT:-5173}:5173"
+    environment:
+      API_URL: http://api:8000
+    volumes:
+      - ./ui:/app
+      # keep the image's installed deps rather than shadowing them with the host's
+      - /app/node_modules
+    depends_on:
+      - api
+
+volumes:
+  xtdb-data:
+  models:

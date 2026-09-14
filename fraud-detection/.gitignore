@@ -1,0 +1,21 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# node
+node_modules/
+ui/dist/
+
+# trained model artifacts — reproduced by a retrain
+models/
+
+# local overrides
+.env
+
+# private working notes: kept beside what they describe, never committed
+*.local.md
+
+# pnpm's local content-addressed store, created by an install in ui/
+ui/.pnpm-store/
