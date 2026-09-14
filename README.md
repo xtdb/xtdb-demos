@@ -6,7 +6,6 @@ version** so it keeps working after `main` moves on.
 
 | Demo | What it shows |
 | --- | --- |
-| [`bikeshare-grafana`](bikeshare-grafana) | Grafana's stock PostgreSQL data source against XTDB, plus a dashboard that rewinds to a point in the past |
 | [`fraud-detection`](fraud-detection) | Point-in-time fraud features, historical training, and replaying a score after a late chargeback |
 
 ## Conventions
