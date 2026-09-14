@@ -17,9 +17,5 @@ models/
 # private working notes: kept beside what they describe, never committed
 *.local.md
 
-# recording intermediates — the mp4 and the still are committed, these are derived
-docs/*.webm
-docs/*.gif
-
 # pnpm's local content-addressed store, created by an install in ui/
 ui/.pnpm-store/

@@ -15,9 +15,5 @@ dependencies = [
     "uvicorn[standard]>=0.29",
 ]
 
-[project.optional-dependencies]
-# explain_auc.py plots feature separation; not needed to run the demo
-analysis = ["matplotlib>=3.7"]
-
 [tool.uv]
 package = false
