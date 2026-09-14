@@ -7,6 +7,7 @@ version** so it keeps working after `main` moves on.
 | Demo | What it shows |
 | --- | --- |
 | [`bikeshare-grafana`](bikeshare-grafana) | Grafana's stock PostgreSQL data source against XTDB, plus a dashboard that rewinds to a point in the past |
+| [`fraud-detection`](fraud-detection) | Point-in-time fraud features, historical training, and replaying a score after a late chargeback |
 
 ## Conventions
 
@@ -22,7 +23,5 @@ whether someone who has never cloned XTDB can run it.
 
 ## Related
 
-- [`xtdb/xtdb-feature-store`](https://github.com/xtdb/xtdb-feature-store) — a
-  point-in-time-correct fraud feature store. Large enough to warrant its own repo.
 - [`xtdb/driver-examples`](https://github.com/xtdb/driver-examples) — minimal
   connection examples per language.

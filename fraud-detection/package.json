@@ -1,0 +1,9 @@
+{
+  "name": "xtdb-feature-store-tools",
+  "private": true,
+  "description": "Tooling that drives the demo but isn't part of it. Deliberately at the repo root rather than in ui/: the UI container mounts ./ui and installs from its lockfile, so adding a dependency there breaks `pnpm dev` inside the container.",
+  "devDependencies": {
+    "playwright": "^1.63.0",
+    "slopless": "^0.2.38"
+  }
+}
