@@ -138,7 +138,7 @@ Nothing had to publish those feature values ahead of the transaction.
 
 A chargeback is a new fact learned weeks after the transaction.
 It belongs at the moment the fraud happened, but the system must also retain when it learned that.
-Because features are queries over the valid-time history, there is no materialized feature backfill 
+Because features are queries over the valid-time history, there is no materialized feature backfill
 to run.
 
 **Show**

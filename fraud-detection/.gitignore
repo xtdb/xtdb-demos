@@ -23,4 +23,3 @@ docs/*.gif
 
 # pnpm's local content-addressed store, created by an install in ui/
 ui/.pnpm-store/
-
