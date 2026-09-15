@@ -78,7 +78,7 @@ class AuditConfirmScoreContractTest(unittest.TestCase):
         assert response["pcf_before"] == 3.0
         assert response["pcf_after"] == 5.0
 
-    def test_confirm_writes_outcome_and_status_in_the_same_transaction(self):
+    def test_confirm_writes_label_from_confirmation_time_and_removes_pending_chargebacks(self):
         conn, cursor = _connection_with_cursor()
         cursor.fetchall.return_value = PENDING
         pipe = object()
@@ -93,12 +93,12 @@ class AuditConfirmScoreContractTest(unittest.TestCase):
              patch.object(api.M, "explain", return_value={"prob": 0.5}):
             api.audit_confirm(_request())
 
-        assert cursor.executemany.call_count == 3
+        assert cursor.executemany.call_count == 2
         statements = [call.args[0].upper() for call in cursor.executemany.call_args_list]
         assert any("INSERT INTO LABEL" in statement for statement in statements)
-        status_call = next(call for call in cursor.executemany.call_args_list
-                           if "INSERT INTO FRAUD_STATUS" in call.args[0].upper())
-        self.assertEqual(list(status_call.args[1]), [(tid, WHEN) for tid, _ in PENDING])
+        label_call = next(call for call in cursor.executemany.call_args_list
+                           if "INSERT INTO LABEL" in call.args[0].upper())
+        self.assertEqual(list(label_call.args[1]), [(tid, WHEN) for tid, _ in PENDING])
         assert any("DELETE FROM PENDING_CHARGEBACK" in statement for statement in statements)
 
 

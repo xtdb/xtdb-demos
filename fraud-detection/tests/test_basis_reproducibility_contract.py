@@ -1,4 +1,4 @@
-"""A pinned extraction must ignore later transaction, label and status corrections.
+"""A pinned extraction must ignore later transaction and label corrections.
 
 Needs the isolated playground node: docker compose --profile test up -d playground.
 """
@@ -74,12 +74,10 @@ def _txn(cur, tid: str, account: str, event: datetime, amount: float = 100.0):
                             {amount}, 'retail', 'GB')""")
 
 
-def _label(cur, tid: str, event: datetime, is_fraud: bool):
+def _label(cur, tid: str, is_fraud: bool, *, available: datetime | None = None):
+    start = available if available is not None else _write_times[id(cur)]
     cur.execute(f"""INSERT INTO label (_id, _valid_from, is_fraud)
-                    VALUES ('{tid}', {_lit(event)}, {'true' if is_fraud else 'false'})""")
-    cur.execute(f"""INSERT INTO fraud_status (_id, _valid_from, is_fraud)
-                    VALUES ('{tid}', {_lit(_write_times[id(cur)])},
-                            {'true' if is_fraud else 'false'})""")
+                    VALUES ('{tid}', {_lit(start)}, {'true' if is_fraud else 'false'})""")
 
 
 def _account(cur, acct: str):
@@ -111,9 +109,10 @@ class BasisReproducibilityTest(unittest.TestCase):
                     _account(cur, ACCT)
                     _account_written = True
                 _txn(cur, f"t{i}", ACCT, D(i))
+                _label(cur, f"t{i}", False)
                 if i in confirms:
                     tid, event = confirms[i]
-                    _label(cur, tid, event, True)
+                    _label(cur, tid, True)
 
     def tearDown(self):
         self.conn.close()
@@ -138,8 +137,8 @@ class BasisReproducibilityTest(unittest.TestCase):
     def test_a_confirmation_after_the_basis_does_not_change_the_basis_extract(self):
         before = self._pcf_at(BASIS)
         with _learned_at(self.conn, D(30)) as cur:
-            _label(cur, "t5", D(5), True)
-            _label(cur, "t6", D(6), True)
+            _label(cur, "t5", True)
+            _label(cur, "t6", True)
         self.assertEqual(before, self._pcf_at(BASIS))
         # and the new knowledge really is visible without a basis, so the assertion above
         # is about the basis rather than about the writes having failed
@@ -148,7 +147,7 @@ class BasisReproducibilityTest(unittest.TestCase):
     def test_a_label_rewritten_after_the_basis_does_not_change_the_basis_extract(self):
         before = self._pcf_at(BASIS)
         with _learned_at(self.conn, D(31)) as cur:
-            _label(cur, "t2", D(2), False)   # overturned, long after the basis
+            _label(cur, "t2", False)   # overturned, long after the basis
         self.assertEqual(before, self._pcf_at(BASIS))
 
     def test_a_first_confirmation_after_the_basis_is_excluded_for_a_future_dated_anchor(self):
@@ -158,7 +157,7 @@ class BasisReproducibilityTest(unittest.TestCase):
             before = _rows(cur, model._pcf_sql(since=D(0), resolved_before=D(60),
                                                account=ACCT, system_time=BASIS))
         with _learned_at(self.conn, D(30)) as cur:
-            _label(cur, "t7", D(7), True)          # first confirmed after the basis
+            _label(cur, "t7", True)          # first confirmed after the basis
         with self.conn.cursor() as cur:
             after = _rows(cur, model._pcf_sql(since=D(0), resolved_before=D(60),
                                               account=ACCT, system_time=BASIS))
@@ -167,7 +166,7 @@ class BasisReproducibilityTest(unittest.TestCase):
     def test_a_retroactive_status_correction_does_not_change_the_basis_extract(self):
         before = self._pcf_at(BASIS)
         with _learned_at(self.conn, D(31)) as cur:
-            cur.execute(f"""INSERT INTO fraud_status (_id, _valid_from, _valid_to, is_fraud)
+            cur.execute(f"""INSERT INTO label (_id, _valid_from, _valid_to, is_fraud)
                             VALUES ('t2', {_lit(D(4))}, {_lit(D(8))}, false)""")
         self.assertEqual(before, self._pcf_at(BASIS))
         self.assertNotEqual(before, self._pcf_at(D(35)))

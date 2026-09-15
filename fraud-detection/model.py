@@ -28,7 +28,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from queries import connect, sys_tx_retry
+from queries import connect, sys_tx_retry, require_label_history as _require_label_history
 from registry import FEATURE_ORDER, MIN_OBS_30D, Z_CLIP
 from registry import ts_lit as R_ts_lit
 
@@ -118,36 +118,13 @@ GROUP BY t._id, t.account_id, t.txn_ts, t.amount, t.country,
 """, system_time)
 
 
-def _require_fraud_status(cur, system_time: datetime | None = None):
-    """Older demo volumes must not silently train with missing status histories."""
-    cur.execute("""SELECT table_name FROM information_schema.tables
-                   WHERE table_schema = 'public' AND table_name IN ('txn', 'fraud_status')""")
-    tables = {row[0] for row in cur.fetchall()}
-    if 'txn' not in tables:
-        return
-    sql = "SELECT _id FROM txn LIMIT 1"
-    if 'fraud_status' in tables:
-        sql = """
-SELECT t._id FROM txn t
-LEFT JOIN fraud_status FOR ALL VALID_TIME AS s ON s._id = t._id
-WHERE s._id IS NULL
-LIMIT 1
-"""
-    cur.execute(_basis_sql(sql, system_time))
-    if cur.fetchone() is not None:
-        raise RuntimeError(
-            "This dataset has incomplete fraud_status history and needs a fresh seed. "
-            "See README.md: restarting the API does not upgrade an existing demo volume."
-        )
-
-
 def _fraud_joins(anchor: str) -> str:
-    """Share the status-interval join between the extract and its displayed sample."""
+    """Read the same label table at each decision time and at the current valid time."""
     return f"""LEFT JOIN txn f
   ON f.account_id = {anchor}.account_id
  AND f.txn_ts < {anchor}.txn_ts
  AND f.txn_ts >= {anchor}.txn_ts - INTERVAL 'P90D'
-LEFT JOIN fraud_status FOR ALL VALID_TIME AS s
+LEFT JOIN label FOR ALL VALID_TIME AS s
   ON s._id = f._id
  AND s._valid_time CONTAINS {anchor}.txn_ts
  AND s.is_fraud
@@ -223,7 +200,7 @@ def sample_training(limit: int, resolved_before: datetime,
     try:
         cur = fconn.cursor()
         try:
-            _require_fraud_status(cur, system_time)
+            _require_label_history(cur, system_time)
             cur.execute(_sample_sql(limit, resolved_before, system_time))
             return _fetch_df(cur)
         finally:
@@ -252,7 +229,7 @@ def leakage_sample(conn, limit: int = 8) -> dict:
     try:
         cur = fconn.cursor()
         try:
-            _require_fraud_status(cur)
+            _require_label_history(cur)
             cur.execute(_pcf_sql(resolved_before=resolved))
             free = _fetch_df(cur)
             cur.execute(_pcf_leaky_sql(resolved_before=resolved))
@@ -326,7 +303,7 @@ def extract(limit: int | None = None, since: datetime | None = None,
     try:
         cur = fconn.cursor()
         try:
-            _require_fraud_status(cur, system_time)
+            _require_label_history(cur, system_time)
             cur.execute(_window_sql(limit, since, account, resolved_before, system_time))
             df = _fetch_df(cur)
             cur.execute(_pcf_sql(limit, since, account, resolved_before, system_time))

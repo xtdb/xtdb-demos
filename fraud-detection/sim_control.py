@@ -12,7 +12,7 @@ import random
 import threading
 
 import sim as S
-from queries import connect
+from queries import connect, require_label_history
 
 
 _TICK_INTERVAL = 1.2  # real seconds between ticks (fixed cadence; 15 sim-min per tick)
@@ -46,6 +46,9 @@ class SimController:
             if speed is not None:
                 self.set_speed(speed)
             if not self.running:
+                # Fail in the caller before claiming a worker is running on legacy data.
+                with connect() as c, c.cursor() as cur:
+                    require_label_history(cur)
                 self._stop.clear()
                 self._thread = threading.Thread(target=self._run, daemon=True)
                 self.running = True

@@ -68,14 +68,14 @@ const SLIDES: Slide[] = [
           A chargeback confirms a transaction was fraud, often weeks after it happened. In most feature stores that
           means a backfill job to recompute the affected features. Here the correction is{' '}
           <strong className="text-neutral-100">a single insert</strong> into the label table, placed in valid-time at
-          the moment the fraud occurred. Because features are queries, the account's history simply reads differently
-          from then on.
+          the moment the classification became available. The transaction keeps its original event time.
+          Feature queries can read the updated label or the classification available at an earlier scoring time.
         </p>
         <Points
           items={[
             <>Rows on an <span className="text-amber-400">⚠</span> account have an unconfirmed chargeback in flight. Click one, open <span className="font-mono text-neutral-300">Correction</span>, and confirm it.</>,
             <>Run <span className="font-mono text-neutral-300">p(fraud)</span> again over the account's history: confirming raises <span className="font-mono text-neutral-300">prior_confirmed_fraud</span>, and the <strong className="text-neutral-100">same model</strong> re-scores its next borderline transaction upward. No retrain, no feature backfill.</>,
-            <>The fact lands in <strong className="text-neutral-100">valid-time</strong> (when the fraud happened) but is recorded at a new <strong className="text-neutral-100">system-time</strong> (when we learned it). Both axes are kept.</>,
+            <>The fact lands in <strong className="text-neutral-100">valid-time</strong> (when the classification became available) and is recorded at a new <strong className="text-neutral-100">system-time</strong> (when XTDB received it). Both axes are kept.</>,
           ]}
         />
       </div>

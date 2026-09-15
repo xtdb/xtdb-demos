@@ -6,8 +6,8 @@ Keep SQL comprehensible and preserve the UI's access to the queries behind its r
 
 - Keep queries compatible with the pinned XTDB image; use self-joins rather than window frames in `model._window_sql`.
 - Use `txn_ts` for event-time windows and exclude the transaction being scored from its own history.
-- Update `label` and `fraud_status` atomically: outcomes apply from event time, statuses from availability time.
-- Train with `as_known_then`; preserve the system-time basis across every table.
+- `label` valid time starts when a classification became available; keep the latest interval open-ended.
+- Train with `as_known_then` from label history; use current labels for targets and hindsight, preserving the system-time basis across every table.
 - Keep training and serving feature semantics aligned.
 - Test SQL behaviour against the separate playground, never the demo database.
 - Start the playground before running the suite and report any skipped tests.

@@ -7,7 +7,7 @@
 # The backfill replays history in *learned-at* order, one XTDB transaction per day with
 # an explicit SYSTEM_TIME, so a chargeback lands later in system-time than the
 # transaction it corrects. This preserves the system-time history used to replay a
-# score before its labels changed. Training uses fraud_status valid-time intervals
+# score before its labels changed. Training uses label valid-time intervals
 # to select the status available at each decision.
 # The replay needs a fresh node: nothing already committed may be newer than its
 # first simulated day, because system time only moves forward.

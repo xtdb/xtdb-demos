@@ -1,7 +1,7 @@
 """Executable contract for what counts as a *correction* on the activity feed.
 
 A correction is a transaction we first recorded as legit and later recorded as fraud —
-a chargeback, visible purely on the system-time axis. Two things are easy to get wrong
+a chargeback, recorded when the classification becomes available. Two things are easy to get wrong
 and both are pinned here: a transaction booked as fraud from the outset is not a
 correction, and the instant reported is when we *first* confirmed the fraud.
 
@@ -90,10 +90,14 @@ class CorrectionsFeedTest(unittest.TestCase):
             cur.execute(f"INSERT INTO label (_id, _valid_from, is_fraud) VALUES ('stays-legit', {_lit(D(1))}, false)")
             cur.execute(f"INSERT INTO label (_id, _valid_from, is_fraud) VALUES ('fraud-on-arrival', {_lit(D(1))}, true)")
 
-        # day 30: a chargeback settles against the first one. The fact was true from the
-        # event, so valid time stays at day 1; only system time moves.
+        # day 30: the classification becomes available, while txn_ts retains the event date.
         with _learned_at(cls.conn, D(30)) as cur:
-            cur.execute(f"INSERT INTO label (_id, _valid_from, is_fraud) VALUES ('charged-back', {_lit(D(1))}, true)")
+            cur.execute(f"INSERT INTO label (_id, _valid_from, is_fraud) VALUES ('charged-back', {_lit(D(30))}, true)")
+
+        with _learned_at(cls.conn, D(40)) as cur:
+            cur.execute(f"INSERT INTO label (_id, _valid_from, is_fraud) VALUES ('charged-back', {_lit(D(40))}, false)")
+        with _learned_at(cls.conn, D(50)) as cur:
+            cur.execute(f"INSERT INTO label (_id, _valid_from, is_fraud) VALUES ('charged-back', {_lit(D(50))}, true)")
 
     @classmethod
     def tearDownClass(cls):
