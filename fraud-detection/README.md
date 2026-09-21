@@ -44,15 +44,6 @@ The default 4g is comfortable for the 50k-row seed; the full 300k demo set wants
 Data lives in the `xtdb-data` volume and survives restarts.
 `docker compose down -v` wipes it; re-run `./bin/seed.sh` afterwards, which is cheap.
 
-### Existing demo data
-
-The earlier demo used a backdated `label` table and a separate `fraud_status` table.
-That data cannot be reused with the single label timeline; training and write paths reject the old model.
-To preserve it, start a new Compose project with `docker compose -p fraud-label-timeline up -d` and unused ports configured in `.env`.
-Use the same project name when seeding, for example `COMPOSE_PROJECT_NAME=fraud-label-timeline ./bin/seed.sh`.
-Alternatively, explicitly remove the old project's volumes and seed again if its data is no longer needed.
-Restarting the API alone does not migrate the history.
-
 ### Training queries
 
 Bulk training uses self-joins to compute trailing features, excluding the transaction being scored from its own history.
