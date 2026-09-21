@@ -87,7 +87,9 @@ WHERE _id = '{c.account_id}'"""
 
 def _prior_confirmed_fraud(c: Ctx) -> str:
     # bounded to a trailing 90d window: recent prior fraud is the signal, and it
-    # caps the scan so the feature scales regardless of the account's total history
+    # caps the scan so the feature scales regardless of the account's total history.
+    # Read current labels for reassessment; the original system-time basis restores
+    # the labels used for a past score without changing this query.
     return f"""SELECT COUNT(*) AS v
 FROM txn FOR VALID_TIME AS OF {ts_lit(c.t)} AS t
 JOIN label AS l ON l._id = t._id
@@ -132,10 +134,11 @@ def _with_basis(sql: str, c: Ctx) -> str:
 
 
 def _serve_sql(c: Ctx) -> str:
-    """One query over the account's history returning all trailing-window aggregates
-    for the scored (hypothetical) transaction at instant T. Point-in-time by
-    construction: `FOR VALID_TIME AS OF T` yields the account's history as the world
-    was at T (temporal-index pruned), and the scored txn isn't in the table."""
+    """Compute all features at event time T using the current classifications.
+
+    A system-time basis restores the classifications recorded for an earlier score.
+    Do not pin label valid time to T: reassessment must include later confirmations.
+    """
     T = ts_lit(c.t)
     return f"""SELECT
   COALESCE(SUM(CASE WHEN t.txn_ts >= {T} - INTERVAL 'PT24H' THEN 1 ELSE 0 END),0) AS txn_count_24h,
@@ -166,7 +169,7 @@ TRAIN_FRAGMENTS = {
     "foreign":
         "CASE WHEN a.home_country <> t.country THEN 1 ELSE 0 END",
     "prior_confirmed_fraud":
-        "COUNT(s._id)\n-- fraud_status s: s._valid_time CONTAINS r.txn_ts AND s.is_fraud",
+        "COUNT(s._id)\n-- label s: s._valid_time CONTAINS r.txn_ts AND s.is_fraud",
 }
 
 # How the batch form bounds each trailing window: a band join from the anchor `t` to its

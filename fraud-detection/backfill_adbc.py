@@ -6,9 +6,9 @@ Each day is written at its simulated system time so score replay can recover the
 labels available before a later confirmation. System time must increase monotonically,
 so transactions and confirmations are replayed together in arrival order.
 
-The outcome in `label` applies from the transaction event. The matching `fraud_status`
-starts at the day's arrival time, allowing training to join status intervals to each
-historical decision. That valid-time timeline can also be imported in one transaction;
+The classification in `label` applies from the day's arrival time, allowing training
+to join its valid-time intervals to each historical decision. The transaction's event
+time remains in txn_ts. That label timeline can also be imported in one transaction;
 the daily system-time replay is needed for the demo's score-replay history.
 
 Requires a FRESH node (empty log): the first transaction sets the clock's start, and
@@ -25,7 +25,7 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
-from queries import connect, iso, sys_tx
+from queries import connect, iso, sys_tx, require_label_history
 from sim import (CATEGORIES, COUNTRIES, DELAY_MAX_DAYS, DELAY_MIN_DAYS, FOREIGN,
                  FRAUD_RATE_NORMAL, FRAUD_RATE_PRONE, SEED, make_accounts)
 
@@ -112,6 +112,8 @@ def run(n: int, span_days: int, chunk: int):
             cur.execute(f"{prefix} VALUES {vals}")
 
     conn = connect()
+    with conn.cursor() as cur:
+        require_label_history(cur)
     t0 = time.time()
     acct_ts = _dt(day(start_us))
     with sys_tx(conn, acct_ts) as cur:
@@ -129,15 +131,11 @@ def run(n: int, span_days: int, chunk: int):
                        float(amount[i]), category[i], country[i]) for i in tt])
                 # everything starts labelled legit (learned when the txn is seen)
                 emit(cur, "INSERT INTO label (_id, _valid_from, is_fraud)",
-                     [(ids[i], _dt(event_us[i]), False) for i in tt])
-                emit(cur, "INSERT INTO fraud_status (_id, _valid_from, is_fraud)",
                      [(ids[i], _dt(d), False) for i in tt])
             cc = confirm_by_day.get(d, [])
             if cc:
-                # confirmation: fraud from when it happened (valid = event), learned now (system = d)
+                # Classification becomes true when confirmed; its previous interval remains available.
                 emit(cur, "INSERT INTO label (_id, _valid_from, is_fraud)",
-                     [(ids[i], _dt(event_us[i]), True) for i in cc])
-                emit(cur, "INSERT INTO fraud_status (_id, _valid_from, is_fraud)",
                      [(ids[i], _dt(d), True) for i in cc])
             pp = pending_by_day.get(d, [])
             if pp:

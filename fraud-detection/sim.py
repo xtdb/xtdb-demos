@@ -3,7 +3,7 @@
 Runs an accelerated sim-clock (default 1 real second = 1 sim-hour), continuously
 inserting transactions into XTDB with occasional fraud bursts, and landing
 chargebacks on a delay. System time follows the simulated arrival time. A label
-applies from its transaction event; fraud_status applies from status availability.
+applies from when its classification became available; txn_ts retains the event time.
 
   python sim.py                       # run forever (the demo backend)
   python sim.py --ticks 30 --fast     # bounded, no sleep (tests/bootstrap check)
@@ -19,7 +19,7 @@ import random
 import time
 from datetime import datetime, timedelta, timezone
 
-from queries import connect, sys_tx
+from queries import connect, sys_tx, require_label_history
 
 UTC = timezone.utc
 SIM_EPOCH = datetime(2024, 1, 1, tzinfo=UTC)
@@ -29,7 +29,7 @@ N_ACCOUNTS = 150
 # Chargeback settlement delay is VARIABLE, not fixed: a fraud is confirmed somewhere
 # between DELAY_MIN and DELAY_MAX days after it happened. Variability is deliberate —
 # with a fixed delay the leak-free prior_confirmed_fraud could be faked with a "skip the
-# last N days" window; a variable delay forces the genuine system-time (as-known) join.
+# last N days" window; a variable delay requires the classification history for each decision.
 DELAY_MIN_DAYS = 2
 DELAY_MAX_DAYS = 30
 CHARGEBACK_DELAY = timedelta(days=DELAY_MAX_DAYS)   # upper bound: older than this ⇒ resolved
@@ -86,7 +86,8 @@ class Sim:
     # --- schema ----------------------------------------------------------
     def reset(self):
         with self.conn.cursor() as cur:
-            for tbl in ("account", "txn", "label", "fraud_status", "sim_clock", "pending_chargeback"):
+            require_label_history(cur)
+            for tbl in ("account", "txn", "label", "sim_clock", "pending_chargeback"):
                 try:
                     cur.execute(f"DELETE FROM {tbl}")
                 except Exception:
@@ -106,6 +107,7 @@ class Sim:
         the id counter, and any in-flight chargebacks from the DB rather than resetting.
         Accounts are the same deterministic set (same SEED), so they need no reload."""
         with self.conn.cursor() as cur:
+            require_label_history(cur)
             cur.execute("SELECT MAX(sim_now) FROM sim_clock")
             row = cur.fetchone()
             if row and row[0]:
@@ -165,10 +167,6 @@ class Sim:
         if due:
             cur.executemany(
                 "INSERT INTO label (_id, _valid_from, is_fraud) VALUES (%s, %s, true)",
-                [(tid, ts) for tid, ts, _ in due],
-            )
-            cur.executemany(
-                "INSERT INTO fraud_status (_id, _valid_from, is_fraud) VALUES (%s, %s, true)",
                 [(tid, self.sim_now) for tid, _, _ in due],
             )
             cur.executemany(
@@ -191,10 +189,6 @@ class Sim:
                 # every txn starts life labelled legit; chargebacks correct later
                 cur.executemany(
                     "INSERT INTO label (_id, _valid_from, is_fraud) VALUES (%s, %s, false)",
-                    [(t["id"], t["ts"]) for t in txns],
-                )
-                cur.executemany(
-                    "INSERT INTO fraud_status (_id, _valid_from, is_fraud) VALUES (%s, %s, false)",
                     [(t["id"], self.sim_now) for t in txns],
                 )
                 frauds = []
@@ -211,10 +205,8 @@ class Sim:
                            VALUES (%s, %s, %s, %s, %s)""",
                         [(t["id"], t["ts"], t["account_id"], t["ts"], t["due"]) for t in frauds],
                     )
-            # Auto-land chargebacks whose settlement time has now arrived: the label
-            # flips to fraud, recorded system-time = sim-now (when we learn), valid-time
-            # = the original event (it was fraud all along). Frauds not yet due stay
-            # pending — a rolling window of in-flight cases the correction lens can act on.
+            # Status becomes available now; keeping the preceding false interval lets
+            # training recover what earlier decisions could use. Unsettled cases stay pending.
             landed = self._land_chargebacks(cur)
             cur.execute("INSERT INTO sim_clock (_id, _valid_from, sim_now) VALUES (%s, %s, %s)",
                         ("clock", self.sim_now, self.sim_now))

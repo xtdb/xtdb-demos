@@ -20,7 +20,7 @@ from typing import TypedDict
 
 import model as M
 import registry as R
-from queries import connect, sys_tx_retry
+from queries import connect, sys_tx_retry, require_label_history
 from sim_control import controller as SIM
 
 UTC = timezone.utc
@@ -146,11 +146,10 @@ def corrections_sql(limit: int = 40) -> str:
     return f"""WITH corrected AS (
                  SELECT _id,
                         MIN(CASE WHEN is_fraud THEN _system_from END)     AS confirmed_at,
-                        MIN(CASE WHEN NOT is_fraud THEN _system_from END) AS first_seen,
-                        MIN(CASE WHEN is_fraud THEN _valid_from END)      AS event_at
+                        MIN(CASE WHEN NOT is_fraud THEN _system_from END) AS first_seen
                  FROM label FOR ALL SYSTEM_TIME
                  GROUP BY _id)
-               SELECT c._id, t.account_id, t.amount, t.country, c.event_at, c.confirmed_at
+               SELECT c._id, t.account_id, t.amount, t.country, t.txn_ts AS event_at, c.confirmed_at
                FROM corrected c
                JOIN txn t ON t._id = c._id
                WHERE c.first_seen < c.confirmed_at
@@ -160,9 +159,10 @@ def corrections_sql(limit: int = 40) -> str:
 @app.get("/api/feed")
 def feed(limit: int = 40):
     """Recent activity as the database learned it (ORDER BY _system_from) — no event
-    bus, just a query over the system-time axis. Each item carries happened_at
-    (valid) vs learned_at (system); a correction is a label that flipped legit->fraud
-    at a later system-time than it was first recorded (a real chargeback)."""
+    bus, just a query over the system-time axis. Each item carries the transaction
+    event time and when XTDB recorded it; a correction is a label that flipped legit->fraud
+    at a later system-time than it was first recorded (a real chargeback).
+    The transaction date comes from txn_ts; label valid time is classification availability."""
     txn_sql = f"""SELECT _id, account_id, amount, country, _valid_from, _system_from
                   FROM txn ORDER BY _system_from DESC LIMIT {limit}"""
     corr_sql = corrections_sql(limit)
@@ -522,8 +522,8 @@ def train_sweep(req: SweepReq):
 @app.get("/api/training/query")
 def training_query():
     """The extraction query itself (no execution) so the Training tab can show both
-    reads: the event-time window pass, and the bitemporal prior_confirmed_fraud join
-    (the `_system_from <= r._valid_from` cut is the as-of on known-time)."""
+    reads: event-time features and prior-fraud counts from label intervals
+    containing each transaction's scoring time."""
     return {"sql": M._extract_sql(), "window_defs": R.WINDOW_DEFS,
             "pcf_sql": M._pcf_sql().strip(), "pcf_leaky_sql": M._pcf_leaky_sql().strip()}
 
@@ -531,7 +531,7 @@ def training_query():
 @app.get("/api/training/leakage")
 def training_leakage(limit: int = 8):
     """Leak-free vs leaky prior_confirmed_fraud over the resolved training set: how many
-    rows the naive (mature-label, no system-time cut) query overcounts, with examples."""
+    rows the current-label query overcounts compared with labels at each scoring time."""
     with connect() as c:
         return M.leakage_sample(c, limit)
 
@@ -572,8 +572,8 @@ def pending_accounts():
 def account_history(account_id: str, limit: int = 30):
     """The account's recent transactions with their current fraud state, so the
     correction lens can show the chargebacks sitting in the real history rather than a
-    detached list. `learned_at` (label._system_from) vs `ts` (_valid_from) is the
-    bitemporal signal: a confirmed fraud was true when it happened but recorded later."""
+    detached list. `ts` is the transaction event and `learned_at` is when XTDB
+    recorded its current classification."""
     base = f"""SELECT t._id AS id, t._valid_from AS ts, t.amount, t.country,
                       l.is_fraud AS is_fraud, l._system_from AS learned_at, {{pending}}
                FROM txn t
@@ -809,6 +809,8 @@ def audit_confirm(req: ConfirmReq) -> ConfirmResponse:
     earlier decision. `n_confirmed` is the whole set; `n_prior` is the subset affecting
     this transaction."""
     with connect() as c:
+        with c.cursor() as cur:
+            require_label_history(cur)
         later = _parse(req.later_ts)
         ctxB = R.Ctx(req.account_id, later, req.amount, req.country)
         pipe, meta = M.load_version(c, req.model_version)
@@ -829,15 +831,11 @@ def audit_confirm(req: ConfirmReq) -> ConfirmResponse:
                     "pcf_before": vecB["prior_confirmed_fraud"],
                     "pcf_after": vecB["prior_confirmed_fraud"],
                     "pcf_reproduced": vecB["prior_confirmed_fraud"]}
-        # confirm at system-time = sim-now (when we learn it now); the fraud was true
-        # from its event, so valid-time stays the original txn time.
+        # Use the actual commit time for availability, including retries after a
+        # concurrent write, so training cannot see this confirmation prematurely.
         def _confirm(cur, confirmed_at):
             cur.executemany(
                 "INSERT INTO label (_id, _valid_from, is_fraud) VALUES (%s, %s, true)",
-                [(fid, fts) for fid, fts in pend],
-            )
-            cur.executemany(
-                "INSERT INTO fraud_status (_id, _valid_from, is_fraud) VALUES (%s, %s, true)",
                 [(fid, confirmed_at) for fid, _ in pend],
             )
             cur.executemany(

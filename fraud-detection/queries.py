@@ -28,6 +28,35 @@ def iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
+def require_label_history(cur, system_time: datetime | None = None):
+    """Reject legacy datasets and missing current outcomes before using label history."""
+    cur.execute("""SELECT table_name FROM information_schema.tables
+                   WHERE table_schema = 'public'
+                     AND table_name IN ('txn', 'label', 'fraud_status')""")
+    tables = {row[0] for row in cur.fetchall()}
+    if 'fraud_status' in tables:
+        raise RuntimeError(
+            "This dataset uses the old label/fraud_status model and needs a fresh seed. "
+            "Use a new Compose project and unused ports to preserve the old data; see README.md."
+        )
+    if 'txn' not in tables:
+        return
+    sql = "SELECT _id FROM txn LIMIT 1"
+    if 'label' in tables:
+        sql = """SELECT t._id FROM txn t
+LEFT JOIN label l ON l._id = t._id
+WHERE l._id IS NULL
+LIMIT 1"""
+    if system_time is not None:
+        sql = f"SETTING DEFAULT SYSTEM_TIME AS OF TIMESTAMP '{iso(system_time)}'\n{sql}"
+    cur.execute(sql)
+    if cur.fetchone() is not None:
+        raise RuntimeError(
+            "This dataset has incomplete label history: every transaction needs a current label. "
+            "Keep the latest classification open-ended, or use a fresh seed; see README.md."
+        )
+
+
 @contextmanager
 def sys_tx(conn, system_time: datetime):
     """A write transaction stamped with an explicit system-time (when the DB *learns*
