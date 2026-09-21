@@ -44,19 +44,9 @@ The default 4g is comfortable for the 50k-row seed; the full 300k demo set wants
 Data lives in the `xtdb-data` volume and survives restarts.
 `docker compose down -v` wipes it; re-run `./bin/seed.sh` afterwards, which is cheap.
 
-### Existing demo data
-
-The earlier demo used a backdated `label` table and a separate `fraud_status` table.
-That data cannot be reused with the single label timeline; training and write paths reject the old model.
-To preserve it, start a new Compose project with `docker compose -p fraud-label-timeline up -d` and unused ports configured in `.env`.
-Use the same project name when seeding, for example `COMPOSE_PROJECT_NAME=fraud-label-timeline ./bin/seed.sh`.
-Alternatively, explicitly remove the old project's volumes and seed again if its data is no longer needed.
-Restarting the API alone does not migrate the history.
-
 ### Training queries
 
 Bulk training uses self-joins to compute trailing features, excluding the transaction being scored from its own history.
-The pinned XTDB image does not support the temporal window frames these features would require.
 The tests compare the training and serving feature values.
 The prior-fraud query joins `label FOR ALL VALID_TIME` on `_valid_time CONTAINS` each transaction's `txn_ts`.
 A second join to the same table reads current labels for the hindsight count, while the query-level system-time basis applies to both.
@@ -86,14 +76,14 @@ Do not run tests against the demo database: its system timestamps follow the sim
 
 ## Layout
 
-- `api.py`: FastAPI surface (the only web entrypoint).
-- `registry.py`: the feature layer: each feature is a point-in-time SQL query; `serve()`, `vector()`, `_with_basis()`.
-- `model.py`: the SQL extraction, logistic-regression training (`train_window`), `load_latest`, `explain`.
-- `sim.py`: live simulator (append mode continues the backfilled history).
-- `sim_control.py`: in-process controller so the sim starts/stops from the web app.
-- `backfill_adbc.py`: bitemporal replay of history in learned-at order, plus seeded pending chargebacks.
-- `queries.py`: shared `connect()` (pgwire, with the StrDumper XTDB needs).
-- `ui/`: the React app (`src/components`, `src/views`).
+- `api.py`: the HTTP API for the demo.
+- `registry.py`: SQL feature definitions and calculations.
+- `model.py`: training queries, logistic-regression training, and model loading and explanations.
+- `sim.py`: generates new transactions and fraud confirmations.
+- `sim_control.py`: starts and stops the simulation from the web app.
+- `backfill_adbc.py`: seeds the database by replaying generated history in arrival order, including fraud confirmations scheduled to arrive later.
+- `queries.py`: shared database connection and transaction helpers.
+- `ui/`: the React user interface.
 
 ## Data model
 
@@ -104,24 +94,21 @@ Do not run tests against the demo database: its system timestamps follow the sim
   Keep the latest interval open-ended until another classification replaces it.
   Bulk training selects the interval containing each decision time; training targets and hindsight use the current classification.
   System time preserves earlier database states for replay and reproducible training.
-- `pending_chargeback`: frauds not yet confirmed; the correction-lens candidates.
+- `pending_chargeback`: simulated fraudulent transactions awaiting confirmation.
 - `sim_clock`, `model_registry`: the sim's current instant, and trained-model metadata + joblib path.
 
-Event time is the explicit `txn_ts` column, not `_valid_from`.
-They hold the same instant today, but valid-time answers "when was this fact true", which stops being the event instant the moment a transaction acquires a lifecycle.
-Both the training windows and the serving queries read `txn_ts`, so the batch and online paths can't drift apart.
+Training and serving both use `txn_ts` to define their historical windows.
 
-## Known rough edges
+## Caveats
 
-- Seeding requires an empty demo database because it replays writes at historical system timestamps.
-  The Compose project `xtdb-fraud-detection` uses its own volumes.
-- The bulk feature queries compute from history on demand.
-  Larger seeds take more memory and time; the default seed has 50,000 transactions.
-- Tests use a separate playground on port 5445.
-  Start it before running the suite, or the database tests will skip.
-- The model and generated transactions are for demonstration, not production fraud decisions.
+- The generated transactions and model illustrate historical feature queries and decision replay.
+  They are not intended for production fraud detection.
+- Seeding requires an empty demo database because it replays transactions at historical system timestamps.
+  Docker Compose keeps the demo's data in its own volumes.
+- The default dataset contains 50,000 transactions.
+  Larger datasets require more memory and take longer to seed and query.
 
 ## See also
 
-- [`point-in-time-feature-extraction`](https://docs.xtdb.com/adbc/guides/point-in-time-feature-extraction): the loan-default sibling, ADBC/FlightSQL flavour.
+- [Point-in-time feature extraction](https://docs.xtdb.com/adbc/guides/point-in-time-feature-extraction): a loan-default prediction example using ADBC and FlightSQL.
 - [Time in XTDB](https://docs.xtdb.com/about/time-in-xtdb): the underlying bitemporal model.
