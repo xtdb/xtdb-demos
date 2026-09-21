@@ -102,15 +102,14 @@ Event time is the explicit `txn_ts` column, not `_valid_from`.
 They hold the same instant today, but valid-time answers "when was this fact true", which stops being the event instant the moment a transaction acquires a lifecycle.
 Both the training windows and the serving queries read `txn_ts`, so the batch and online paths can't drift apart.
 
-## Known rough edges
+## Caveats
 
-- Seeding requires an empty demo database because it replays writes at historical system timestamps.
-  The Compose project `xtdb-fraud-detection` uses its own volumes.
-- The bulk feature queries compute from history on demand.
-  Larger seeds take more memory and time; the default seed has 50,000 transactions.
-- Tests use a separate playground on port 5445.
-  Start it before running the suite, or the database tests will skip.
-- The model and generated transactions are for demonstration, not production fraud decisions.
+- The generated transactions and model illustrate historical feature queries and decision replay.
+  They are not intended for production fraud detection.
+- Seeding requires an empty demo database because it replays transactions at historical system timestamps.
+  Docker Compose keeps the demo's data in its own volumes.
+- The default dataset contains 50,000 transactions.
+  Larger datasets require more memory and take longer to seed and query.
 
 ## See also
 
