@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inspection line · XTDB</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="masthead"><a href="/" class="brand">XT<span>DB</span><span class="divider">/</span><span class="brand-label">MANUFACTURING</span></a><span class="connection">SIMULATED CAMERA · REAL DATABASE</span></header>
+  <main>
+    <section class="intro">
+      <div><p class="eyebrow">01 / INSPECTION & RELEASE</p><h1>The measurement changed.<br>The decision has a history.</h1><p class="lede">Inspect a batch. Release the passing parts. Correct a camera calibration<br class="desktop"> and see which released parts now need review.</p></div>
+      <div class="cell-label"><span class="status-dot"></span> CELL 01 <small>Vision inspection<br>Precision spacers · Batch of 24</small></div>
+    </section>
+    <section class="workflow" aria-label="Demo controls">
+      <button id="run" class="primary"><span class="step-number">1</span><span>Run batch<small>Simulate 24 inspections</small></span></button>
+      <button id="release" disabled><span class="step-number">2</span><span>Release passing parts<small>Save the decision basis</small></span></button>
+      <button id="correct" disabled><span class="step-number">3</span><span>Apply correction<small>Calibration was wrong, 09:00–11:00</small></span></button>
+    </section>
+    <p id="error" class="error" role="alert" hidden></p>
+    <p id="progress" class="progress" role="status" aria-live="polite">Ready to run. Measurements and product tolerances are illustrative.</p>
+    <section id="empty" class="empty"><div class="part-illustration"><div></div></div><h2>A small correction. A different outcome.</h2><p>A 201-pixel part measures 10.050 mm with the original calibration.<br>With the corrected calibration, it measures 10.251 mm, outside the tolerance.</p><p class="muted">Run the batch to follow the measurements through to a release decision.</p></section>
+    <div id="dashboard" hidden>
+      <section class="summary" aria-label="Current batch summary">
+        <div><span>INSPECTED</span><strong id="count">24</strong><small>parts on 15 Sep 2026</small></div>
+        <div><span>PASS NOW</span><strong id="passed">0</strong><small>using current information</small></div>
+        <div><span>RELEASED</span><strong id="released">0</strong><small>recorded decisions</small></div>
+        <div id="review-card"><span>NEED REVIEW</span><strong id="review">0</strong><small>released, now outside tolerance</small></div>
+      </section>
+      <section class="timeline-panel">
+        <div class="section-heading"><div><p class="eyebrow">CAMERA CALIBRATION</p><h2>When the correction applies</h2></div><span class="muted">15 Sep 2026 · UTC · mm per pixel</span></div>
+        <div id="timeline" class="timeline"></div><div class="time-ticks"><span>08:00</span><span>09:00</span><span>10:00</span><span>11:00</span><span>12:00</span></div>
+        <p id="timeline-note" class="muted"></p>
+      </section>
+      <section class="workspace">
+        <div class="batch-panel">
+          <div class="section-heading"><div><p class="eyebrow">BATCH RESULTS</p><h2>Inspect the evidence</h2></div><div class="view-toggle" role="group" aria-label="Assessment view"><button id="current" aria-pressed="true">Current</button><button id="original" aria-pressed="false" disabled>Original assessment</button></div></div>
+          <p id="view-note" class="view-note"></p>
+          <div class="table-scroll"><table><thead><tr><th>Part / UTC</th><th>Width</th><th>Assessment</th><th>Release record</th></tr></thead><tbody id="parts"></tbody></table></div>
+        </div>
+        <aside class="detail-panel" aria-label="Selected part"><div class="section-heading"><div><p class="eyebrow">SELECTED PART</p><h2 id="part-title">P-007</h2></div><span id="part-time" class="muted"></span></div><div id="part-detail"></div></aside>
+      </section>
+      <section class="query-panel"><details open><summary>The temporal query <span>View the SQL behind these results</span></summary><p>Each inspection joins the calibration and tolerance effective at its inspection time. The system-time basis selects which recorded version of that history to use.</p><pre><code id="sql"></code></pre><p class="query-parameter">Query parameter <code id="parameter"></code></p></details></section>
+    </div>
+    <footer><span>XTDB · Temporal SQL in a working inspection flow</span><span>Simulated measurements · No camera or trained model required</span></footer>
+  </main>
+</body>
+</html>
