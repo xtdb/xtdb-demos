@@ -183,10 +183,6 @@ button:disabled {
   background:#e9f0ec;
   box-shadow:inset 0 0 0 2px #b9cfc3;
 }
-.ghost {
-  left:15px;
-  opacity:.3;
-}
 .moving {
   animation:travel 4s linear infinite;
 }
