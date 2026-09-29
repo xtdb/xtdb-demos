@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Vision review · XTDB</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+<header><a class="brand" href="/">XTDB <span>/</span> VISION REVIEW</a><span class="badge">DEMO 03</span><button id="new" class="quiet">New batch</button></header>
+<main>
+  <div class="heading">
+    <div><p class="eyebrow">MANUFACTURING · HUMAN REVIEW</p><h1>How good are the parts?<br>How good is the model?</h1><p class="intro">A camera model has inspected 12 parts. Review its decisions to uncover defects in the batch and mistakes in the model.</p></div>
+    <div class="simulation"><b>Simulated vision system</b><span>Illustrative images and fixed model predictions.<br>Your reviews and report history are stored in XTDB.</span></div>
+  </div>
+  <div id="error" role="alert" hidden></div>
+  <section class="panel batch">
+    <div class="section-top"><div><p class="eyebrow">COMPLETED PRODUCTION BATCH</p><h2>12 parts inspected by vision-v1</h2></div><div class="legend"><span><i class="dot green"></i>Model accepted</span><span><i class="dot red"></i>Model rejected</span><span>✓ Human reviewed</span></div></div>
+    <div id="parts" class="parts"></div>
+    <p class="footnote">The batch starts with four human reviews. Select any part to inspect it or revise its review.</p>
+  </section>
+  <section id="guide" class="guide" aria-label="Suggested next step"></section>
+  <div class="workbench">
+    <section class="panel inspection"><div class="section-top"><h2 id="part-title">Loading batch…</h2><span id="part-time" class="mono"></span></div><div id="image" class="image"></div><div class="standard"><b>Inspection rule</b><p>Cracks in the metal are defects. Light surface scratches and removable dust are acceptable.</p></div><p class="image-note">Illustration of a camera image. A magnified detail makes small marks visible.</p></section>
+    <section class="panel verdict"><p class="eyebrow">01 · THE MODEL’S ORIGINAL DECISION</p><div id="prediction"></div><div class="review-section"><p class="eyebrow">02 · YOUR INSPECTION</p><h2>What is this part’s condition?</h2><p id="review-status">Inspect the image, then record your assessment.</p><div class="review-buttons"><button id="acceptable">Acceptable</button><button id="defective" class="danger">Defective</button></div><div id="outcome" class="outcome" aria-live="polite"></div></div><p class="footnote">A review changes our assessment of the part. The model’s prediction and original line action remain recorded.</p></section>
+  </div>
+  <div id="notice" class="notice" role="status" hidden></div>
+  <div class="analytics-heading"><div><p class="eyebrow">TWO QUESTIONS · ONE SET OF REVIEWS</p><h2>What do we know about this batch now?</h2></div><span id="coverage" class="coverage"></span></div>
+  <div class="analytics">
+    <section class="panel"><p class="eyebrow">PRODUCTION QUALITY</p><h3>Which parts are defective?</h3><div id="quality"></div><p class="explanation">This counts defects found by human review, regardless of what the model predicted.</p><p id="quality-scope" class="scope"></p></section>
+    <section class="panel"><p class="eyebrow">MODEL QUALITY · VISION-V1</p><h3>Which predictions were wrong?</h3><div id="model"></div><div id="matrix" class="matrix"></div><p class="explanation">Compared with the latest human assessments. Unreviewed parts are excluded.</p></section>
+  </div>
+  <section class="panel history"><div class="section-top"><div><p class="eyebrow">THE REPORT CHANGES AS KNOWLEDGE CHANGES</p><h2>Reproduce what was known earlier</h2></div><button id="save" class="quiet">Save current report</button></div><p>The initial report used just four reviews. Later reviews can reveal missed defects or reverse earlier judgements. XTDB can still reproduce the earlier report using the data available when it was saved.</p><div class="report-controls"><label for="report-select">Saved report</label><select id="report-select"></select><button id="replay">Reproduce report</button></div><div id="comparison" hidden></div></section>
+  <details class="technical"><summary>How XTDB keeps these views consistent</summary><p>Part records and model predictions are retained. A review describes the part’s condition from its production time; system time records when that assessment entered the database. Revising a review preserves the earlier version.</p><p>Current analytics and historical reports use the same SQL. The saved system-time snapshot applies to parts, predictions and reviews together. Report values are recalculated from that history, not loaded from stored totals.</p><pre id="sql"></pre><p>This demo covers inspection, review and reporting. A missed defect on an originally released part requires operational follow-up; these review buttons do not change stock disposition. All parts in this simulation remain in stock.</p></details>
+  <footer>Manufacturing · Demo 03 · <a href="http://127.0.0.1:5182/">Calibration demo</a> · <a href="http://127.0.0.1:5180/">Original demo</a></footer>
+</main>
+</body>
+</html>
