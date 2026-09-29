@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Production line · XTDB</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<header><a class="brand" href="/">XTDB <span>/</span> PRODUCTION LINE</a><span class="badge">INTERACTIVE DEMO</span><button id="new" class="quiet">New shift</button></header>
+<main>
+<div class="heading"><div><p class="eyebrow">CAMERA INSPECTION · LINE 01</p><h1>A decision made then.<br>A problem discovered now.</h1><p class="intro">Parts are measured and released into stock. When an earlier calibration turns out to be wrong, find the affected parts and decide what happens next.</p></div><div class="legend"><span><i class="dot green"></i>Released</span><span><i class="dot amber"></i>Held</span><span><i class="dot red"></i>Needs review</span></div></div>
+<div id="error" role="alert" hidden></div>
+<section class="production panel" aria-label="Live production">
+<div class="section-top"><div><h2><span id="production-title">Production is running</span> <span id="live" class="live">● LIVE</span></h2><p>Simulated shift · 10 minutes of production every 4 seconds</p></div><button id="pause" class="quiet">Pause line</button></div>
+<div class="line"><div class="infeed"><span class="eyebrow">PARTS ARRIVING</span><div class="belt"><div class="workpiece ghost"></div><div class="workpiece moving"></div></div></div><div class="camera"><span class="eyebrow">CAMERA 01</span><div class="lens">◉</div><span id="measurement">Waiting for a reading</span></div><div class="outfeed"><div id="verdict" class="verdict">Inspecting</div><p>Acceptable width: <b>9.800–10.200 mm</b></p></div><div class="stock"><div><strong id="released">0</strong><span>released in stock</span></div><div><strong id="held">0</strong><span>held in stock</span></div></div></div>
+<div id="recent" class="recent" aria-label="Recent parts"></div>
+<p class="footnote">The shift starts with 18 earlier inspections. All parts stay in stock. New inspections use a verified calibration outside the affected period.</p>
+</section>
+<section class="investigation panel">
+<div class="section-top"><div><p class="eyebrow">YOUR ROLE · QUALITY ENGINEER</p><h2 id="step-title">An earlier measurement may be wrong</h2></div><span id="step-number" class="step-number">01 / 04</span></div>
+<div id="steps" class="steps"></div>
+<div id="guidance" class="guidance"></div>
+<div id="candidates" hidden><div class="candidate-heading"><h3 id="candidate-title">Parts from the affected period</h3><span>09:00 inclusive → 11:00 exclusive</span></div><div id="filters" class="filters"></div><div id="parts" class="parts"></div><div id="detail" class="detail"></div></div>
+<div id="replay" class="replay" hidden></div>
+<div id="control" class="control" hidden></div>
+</section>
+<details class="technical"><summary>What XTDB is doing</summary><p>The camera reading and the original release decision stay intact. Reassessment uses the corrected calibration for each part’s inspection time. Historical replay runs the same assessment against the database snapshot recorded with the original decision.</p><p>The correction applies from 09:00 up to 11:00. This scenario assumes the fault period and corrected conversion are known.</p><pre id="sql"></pre></details>
+<footer>Manufacturing inspection · Second demo · <a href="http://127.0.0.1:5180/">Open the original demo</a></footer>
+</main>
+</body></html>
